@@ -1,0 +1,153 @@
+"use client"
+
+import type React from "react"
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+
+const OTPVerification = () => {
+  const [otp, setOtp] = useState(["", "", "", "", "", ""])
+  const [loading, setLoading] = useState(false)
+  const [countdown, setCountdown] = useState(60)
+  const [error, setError] = useState("")
+  const { verifyOTP, resendOTP, user } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user?.email) {
+      navigate("/signup")
+      return
+    }
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [countdown, user, navigate])
+
+  const handleInputChange = (index: number, value: string) => {
+    if (value.length > 1) return
+
+    const newOtp = [...otp]
+    newOtp[index] = value
+    setOtp(newOtp)
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`)
+      nextInput?.focus()
+    }
+  }
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`)
+      prevInput?.focus()
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const otpValue = otp.join("")
+
+    if (otpValue.length !== 6) {
+      setError("Please enter all 6 digits")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    try {
+      await verifyOTP(otpValue)
+      navigate("/dashboard")
+    } catch (error: any) {
+      setError(error.message || "Invalid OTP. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendOTP = async () => {
+    try {
+      await resendOTP()
+      setCountdown(60)
+      setOtp(["", "", "", "", "", ""])
+      setError("")
+    } catch (error: any) {
+      setError(error.message || "Failed to resend OTP")
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">QUICKCOURT</h1>
+          <div className="flex items-center justify-center mb-4">
+            <span className="text-orange-500 text-2xl mr-2">📧</span>
+            <h2 className="text-xl font-semibold text-gray-700">VERIFY YOUR EMAIL</h2>
+          </div>
+        </div>
+
+        <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
+          <div className="text-center mb-6">
+            <p className="text-gray-600 mb-4">
+              We've sent a code to your email: <span className="font-semibold text-emerald-600">{user?.email}</span>
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm mb-4">
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-center space-x-3 mb-6">
+              {otp.map((digit, index) => (
+                <input
+                  key={index}
+                  id={`otp-${index}`}
+                  type="text"
+                  value={digit}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  className="w-12 h-12 text-center text-xl font-semibold border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none transition duration-200"
+                  maxLength={1}
+                />
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || otp.some((digit) => !digit)}
+              className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Verifying..." : "Verify & Continue"}
+            </button>
+          </form>
+
+          <div className="text-center mt-6">
+            {countdown > 0 ? (
+              <p className="text-gray-500 text-sm">
+                Didn't receive the email? <span className="font-semibold text-emerald-600">Resend in {countdown}s</span>
+              </p>
+            ) : (
+              <button
+                onClick={handleResendOTP}
+                className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm"
+              >
+                Resend email
+              </button>
+            )}
+            <p className="text-gray-400 text-xs mt-2">Wrong email? Edit Email</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default OTPVerification
